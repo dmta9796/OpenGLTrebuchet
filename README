@@ -1,0 +1,24 @@
+HW6: textures and lighting
+
+
+Dmitriy Tarasov
+CSCI4229/5229 Fall 2017
+
+work in progress trebuchet
+
+Key bindings
+  "1"        enable/diable lighting   
+  "2"        enabled/disable axes
+  "3"        change between orthogonal and perspective
+  "z"/"Z"    change ambient light
+  "x"/"X"    change diffuse light
+  "c"/"C"    change specural light
+  "v"/"V"    change emission light
+  "b"/"B"    change shininess
+  "q"        rotate light source
+  "["/"]"    change light in 
+  "k"/"l"    change radius of rotation 
+  arrows     Change view angle
+  PgDn/PgUp  Zoom in and out
+  0          Reset view angle
+  ESC        Exit
