@@ -23,7 +23,7 @@ int th=0;         //  Azimuth of view angle
 int ph=-90;         //  Elevation of view angle
 int fov=25;       //  Field of view
 double asp=1;     //  Aspect ratio
-double dim=4;   //  Size of world
+double dim=6;   //  Size of world
 //window size
 int size=800;
 
@@ -37,7 +37,7 @@ int emission=30;
 int light=1; //enable or disable light
 double zh=0; //lighting angle of rotation
 double distance  =   2;  // Light distance
-float ylight  =   0;  // Elevation of light
+float ylight  =   8;  // Elevation of light
 int local     =   0;  // Local Viewer Model
 float shiny   =   1;  // Shininess (value)
 int shininess =   0;  // Shininess (power of two)
@@ -60,6 +60,7 @@ int metal;
 int water;
 int bark;
 int roof;
+int tree1;
 int    sky[2];
 //movement parameters
 double dirx=0;
@@ -78,17 +79,29 @@ double angle=0;
 double amp=1;
 int firelock=0;
 double deltaangle;
+int loaded=0;
+
+//generic projectile positions
+double projx;
+double projy;
+double projz;
+double t; //time parameter for parabolic trajectory
+double fireangle=0;
+int hit=0;
+int theta;
+
 /*
  *  Draw a cube
  *     at (x,y,z)
  *     dimentions (dx,dy,dz)
  *     rotated th about the y axis
  */
- static void Sky(double D)
+ static void Sky(double x, double y, double z, double D)
 {
    glColor3f(1,1,1);
    glEnable(GL_TEXTURE_2D);
-
+   glPushMatrix();
+   glTranslated(x,y,z);
    //  Sides
    glBindTexture(GL_TEXTURE_2D,sky[0]);
    glBegin(GL_QUADS);
@@ -112,6 +125,7 @@ double deltaangle;
    glTexCoord2f(1.00,1); glVertex3f(-D,+D,-D);
    glTexCoord2f(0.75,1); glVertex3f(-D,+D,+D);
    glEnd();
+   glPopMatrix();
 
    //  Top and bottom
    glBindTexture(GL_TEXTURE_2D,sky[1]);
@@ -163,7 +177,7 @@ static void cone(double x, double y, double z, double dx, double dy,double dz,do
 	glRotated(ph,0,0,1);
 	glScaled(dx,dy,dz);
 	//base
-    glColor3f(1,1,1);
+    //glColor3f(1,1,1);
     glBegin(GL_TRIANGLE_FAN);
     glTexCoord2f(1.0,1.0);
     glVertex3f(0.0,0.0,0.0);
@@ -177,18 +191,11 @@ static void cone(double x, double y, double z, double dx, double dy,double dz,do
     
     //sides
     glBegin(GL_QUAD_STRIP);
-    //glVertex3f(0.0,0.0,1.0);
     for (k=0;k<=360;k+=i)
     {
 	   glNormal3f(Cos(45)*Cos(k),Sin(45),Cos(45)*Sin(k));
        glTexCoord2f(0.01*k,0); glVertex3f(0,+1,0);
        glTexCoord2f(0.01*k,1); glVertex3f(Cos(k),-0,Sin(k));
-       //glTexCoord2f(0,0);glVertex3f(0.0,1.0,0.0);
-       //glTexCoord2f(Cos(k),Sin(k));glVertex3f(Cos(k),0,Sin(k));
-       //glTexCoord2f(Cos(k+i),Sin(k+i));glVertex3f(Cos(k+i),0,Sin(k+i));
-       //glTexCoord2f(0,1);glVertex3f(Cos(k),0,Sin(k));
-       //glTexCoord2f(1,0);glVertex3f(Cos(k+i),0,Sin(k+i));
-       //glTexCoord2f(0,1);glVertex3f(0.0,1.0,0.0);
     }
     glEnd();
 	glPopMatrix();
@@ -448,7 +455,6 @@ void terrain(float zmag,int texture)
 	  double z0 = (zmin+zmax)/2;
 	  glColor3f(1,1,1);
       glEnable(GL_TEXTURE_2D);
-      glEnable(GL_DEPTH_TEST);
       glBindTexture(GL_TEXTURE_2D,texture);
       for (i=0;i<64;i++)
       {
@@ -467,24 +473,92 @@ void terrain(float zmag,int texture)
       glDisable(GL_TEXTURE_2D);
       glPopMatrix();
 }
+static void treecube(double x,double y,double z,
+                 double dx,double dy,double dz,
+                 double th, double ph)
+{
+   //  Set specular color to white
+   float white[] = {1,1,1,1};
+   float black[] = {0,0,0,1};
+   glMaterialf(GL_FRONT_AND_BACK,GL_SHININESS,shiny);
+   glMaterialfv(GL_FRONT_AND_BACK,GL_SPECULAR,white);
+   glMaterialfv(GL_FRONT_AND_BACK,GL_EMISSION,black);
+   //  Save transformation
+   glPushMatrix();
+   //  Offset, scale and rotate
+   glTranslated(x,y,z);
+   glRotated(ph,0,0,1);
+   glRotated(th,0,1,0);
+   glScaled(dx,dy,dz);
+   //  Cube
+   glBegin(GL_QUADS);
+   //  Front
+   glNormal3f( 0, 0, 1);
+   glTexCoord2f(0,0);glVertex3f(-1,-1, 1);
+   glTexCoord2f(1,0);glVertex3f(+1,-1, 1);
+   glTexCoord2f(1,1);glVertex3f(+1,+1, 1);
+   glTexCoord2f(0,1);glVertex3f(-1,+1, 1);
+   //  Back
+   glNormal3f( 0, 0,-1);
+   glTexCoord2f(0,0);glVertex3f(+1,-1,-1);
+   glTexCoord2f(1,0);glVertex3f(-1,-1,-1);
+   glTexCoord2f(1,1);glVertex3f(-1,+1,-1);
+   glTexCoord2f(0,1);glVertex3f(+1,+1,-1);
+   //  Right
+   //glNormal3f(+1, 0, 0);
+   //glTexCoord2f(0.5,0.5);
+   //glTexCoord2f(0,0);glVertex3f(+1,-1,+1);
+   //glTexCoord2f(1,0);glVertex3f(+1,-1,-1);
+   //glTexCoord2f(1,1);glVertex3f(+1,+1,-1);
+   //glTexCoord2f(0,1);glVertex3f(+1,+1,+1);
+   //  Left
+   //glNormal3f(-1, 0, 0);
+   //glTexCoord2f(0,0);glVertex3f(-1,-1,-1);
+   //glTexCoord2f(1,0);glVertex3f(-1,-1,+1);
+   //glTexCoord2f(1,1);glVertex3f(-1,+1,+1);
+   //glTexCoord2f(0,1);glVertex3f(-1,+1,-1);
+   //  Top
+   //glNormal3f( 0,+1, 0);
+   //glTexCoord2f(0,0);glVertex3f(-1,+1,+1);
+   //glTexCoord2f(1,0);glVertex3f(+1,+1,+1);
+   //glTexCoord2f(1,1);glVertex3f(+1,+1,-1);
+   //glTexCoord2f(0,1);glVertex3f(-1,+1,-1);
+   //  Bottom
+   //glNormal3f( 0,-1, 0);
+   //glTexCoord2f(1.0,1.0);glVertex3f(-1,-1,-1);
+   //glTexCoord2f(-1.0,1.0);glVertex3f(+1,-1,-1);
+   //glTexCoord2f(-1.0,-1.0);glVertex3f(+1,-1,+1);
+   //glTexCoord2f(1.0,-1.0);glVertex3f(-1,-1,+1);
+   //  End
+   glEnd();
+   //  Undo transofrmations
+   glPopMatrix();
+}
 void tree(double x, double y, double z, double dx, double dy, double dz, double th,double ph)
 {
 	//generate object last due to transperancy property of foilage
 	double rbark=.1;
-	//double rtop=.75;
+	glColor4f(1,1,1,1);
 	glPushMatrix();
+	glDisable(GL_DEPTH_TEST);
 	glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D,bark);
+	glEnable(GL_BLEND);
+	glBlendFunc (GL_ONE,GL_ONE_MINUS_SRC_COLOR);
+	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_COLOR);
+	glBindTexture(GL_TEXTURE_2D,tree1);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTranslated(x,y,z);
-    glRotated(th,0,1,0);
-    glRotated(ph,0,0,1);
+    glRotated(th,0,0,1);
+    glRotated(ph,0,1,0);
     glScaled(dx,dy,dz);
-	cylinder(0,0,0,rbark,1,90,90);
-	sphere(0,.5,0,.4,1,.4,0,0);
+	treecube(0,0,0,1.5,2,.01,0,0);
+	treecube(0,0,0,1.5,2,.01,90,0);
 	glDisable(GL_TEXTURE_2D);
 	glPopMatrix();
-    appendlist(x,y,z, 1.1*rbark*dx , 1.1*dy , 1.1*rbark*dz , th , ph);
-    appendlist(x,y+.5,z,1.1*.4*dx,1.1*dy,1.1*.4*dz,th,ph);
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+    appendlist(x,y,z, 1.1*rbark*dx , 1.75*dy , 1.1*rbark*dz , th , ph,1);
+    //appendlist(x,y+.5,z,1.1*.4*dx,1.1*dy,1.1*.4*dz,th,ph,1);
 	
 } 
 void keep(double x, double y,double z, double dx, double dy, double dz,double th, double ph)
@@ -516,7 +590,7 @@ void keep(double x, double y,double z, double dx, double dy, double dz,double th
 	
 	glPopMatrix();
 	glDisable(GL_TEXTURE_2D);
-    appendlist(x,y+1.5,z,1.6*dx,3.5*dy,1.6*dz,th,ph);
+    appendlist(x,y+1.5,z,1.6*dx,3.5*dy,1.6*dz,th,ph,1);
 }
 void trebuchetarm(double x, double y,double z,double dx, double dy, double dz, double th, double ph)
 {
@@ -538,12 +612,35 @@ void trebuchetarm(double x, double y,double z,double dx, double dy, double dz, d
 	cube(-0.1,1.81,0.0,0.01,0.30,0.2,0,0);
 	cube(0.0,1.81,0.2,0.01,0.30,0.1,270,0);
 	cube(0.0,1.81,-0.2,0.01,0.30,0.1,90,0);
-	
 	// counterweightw
 	glBindTexture(GL_TEXTURE_2D,wood2);
 	weight(0,-2,0,3,3,3,0,0);
+		
+	//projectile	
+	if(loaded==1)
+	{
+		sphere(.2,1.71,0,0.2,0.2,0.2,0,0);
+	}
 	glPopMatrix();
 	glDisable(GL_TEXTURE_2D);
+}
+void roundhouse(double x, double y,double z,double dx, double dy, double dz, double th, double ph)
+{
+	glPushMatrix();
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D,wood2);
+	//  Offset, scale and rotate
+    glTranslated(x,y,z);
+    glRotated(th,0,1,0);
+    glScaled(dx,dy,dz);
+    glColor3f(1,1,1);
+	cylinder(0,0,0,1,1,90,90);
+	glBindTexture(GL_TEXTURE_2D,land);
+	glColor3f(.8,.8,.2);
+	cone(0,1,0,1,1,1,90,0);
+	glPopMatrix();
+	glDisable(GL_TEXTURE_2D);
+	appendlist(x,y,z,1.2*dx,2.3*dy,1.2*dz,th,ph,1);
 }
 void Trebuchet(double x, double y,double z,double dx, double dy, double dz, double th, double ph)
 { 
@@ -567,23 +664,60 @@ void Trebuchet(double x, double y,double z,double dx, double dy, double dz, doub
 	cube(1.4,0.75, -0.5,  0.09,0.80,0.1,  0,30);
 	cube(0.6,0.75, -0.5,  0.09,0.80,0.1,  0,-30);
 	//gear support
-	cube(-1.0,0.25, 0.5,  0.1,0.25,0.1,  0,0);
-	cube(-1.0,0.25,-0.5,  0.1,0.25,0.1,  0,0);
+	cube(-1.0,0.25, 0.5,  0.1,0.25,0.1,0,0);
+	cube(-1.0,0.25,-0.5,  0.1,0.25,0.1,0,0);
 	//gears
-	cylinder(-1.0,0.40,-0.7,.2,.05,0,0);
-	cylinder(-1.0,0.40, 0.7,.2,.05,0,0);
+	cylinder(-1.0,0.40,-0.7,.2,.05,0,amp*angle);
+	cylinder(-1.0,0.40, 0.7,.2,.05,0,amp*angle);
 	//rotation arm
-	cylinder(-1.0,0.40, 0.0,.05,0.7,0,0);
+	cylinder(-1.0,0.40, 0.0,.05,0.7,0,amp*angle);
 	//arms for gears
 	glBindTexture(GL_TEXTURE_2D,metal);
-	cylinder(-1.0,0.40,-0.7,.05,.30,90,0);
-	cylinder(-1.0,0.40, 0.7,.05,.30,90,0);
-	cylinder(-1.0,0.40,-0.7,.05,.30,90,90);
-	cylinder(-1.0,0.40, 0.7,.05,.30,90,90);
+	cylinder(-1.0,0.40,-0.7,.05,.30,90,amp*angle);
+	cylinder(-1.0,0.40, 0.7,.05,.30,90,amp*angle);
+	cylinder(-1.0,0.40,-0.7,.05,.30,90,90+amp*angle);
+	cylinder(-1.0,0.40, 0.7,.05,.30,90,90+amp*angle);
 	trebuchetarm(1.0,2.05,0,1,1,1,0,amp*angle);
+	projectile(projx,projy,projz,0.2,0.2,0.2,th,ph);
 	glPopMatrix();
 	glDisable(GL_TEXTURE_2D);
-    appendlist(x+.50,y+1.60,z,2.3*dx,2.2*dy,.8*dz,th,ph);
+    appendlist(x+.50,y+1.60,z,2.3*dx,2.2*dy,.8*dz,th,ph,0);
+}
+void showprojpath(double x, double y, double z, double dx, double dy, double dz, double th, double ph)
+{
+	int i;
+	double xcoord=x;
+	double ycoord=y;
+	double zcoord=z;
+	glPushMatrix();
+	glTranslated(x,y,z);
+    glRotated(th,1,0,0);
+    glRotated(ph,0,1,0);
+    glScaled(dx,dy,dz);
+    glColor3f(1,.5,1);
+    glPointSize(1);
+	glBegin(GL_LINE_STRIP);
+	for(i=0;i<50000;i++)
+	{
+		xcoord+=Cos(th);
+		ycoord+=ycoord-ycoord*ycoord;
+		zcoord+=Sin(th);
+		glVertex3d(xcoord,ycoord,zcoord);
+	}
+	glEnd();
+	glPopMatrix();
+}
+void projectile(double x, double y, double z, double dx, double dy, double dz, double th, double ph)
+{
+	if(showpath)
+	{
+		showprojpath(x,y,z,dx,dy,dz,th,ph);
+	}
+	if(firelock==1 && loaded==0)
+	{
+		
+		sphere(x,y,z,.2,.2,.2,0,0);
+	}
 }
 /*
  *  OpenGL (GLUT) calls this routine to display the scene
@@ -646,15 +780,20 @@ void display()
       glDisable(GL_LIGHTING);
 		
    //code for rendering scene
-   terrain(0.1,land);
-   //terrain(0.0,water);
-   keep(4,0,-4,1,1,1,0,0);
-   Trebuchet(3.15,0.15,3.05,.75,.75,.75,0,0);
-   Trebuchet(0.15,0.15,0.05,.75,.75,.75,0,0);
-   tree(-1,1,-.5,1,1,1,0,0);
-   drawlist();
+   terrain(0.3,land);
+   terrain(0.0,water);
+   keep(4,5.2,-6,2,3,2,0,0);
+   roundhouse(6,6.3,5,2,.5,.5,0,0);
+   roundhouse(4,6.3,3,2,.5,.5,10,0);
+   roundhouse(8.5,6.3,3,1,.5,.5,30,0);
+   roundhouse(3,6.3,7,.5,.5,.5,0,0);
+   //keep(4,6.3,0,1,1,1,0,0);
+   //Trebuchet(3.15,0.15,3.05,.75,.75,.75,0,0);
+   Trebuchet(-3.15,5.55,-3.05,.75,.75,.75,theta,0);
+   tree(-3,6.9,-.5,1,1,1,0,0);
+   drawlist();                         // draw bounding boxes
    glDisable(GL_LIGHTING);
-   Sky(80);
+   Sky(movex,movey,movez,100);
    //  Draw axes
    glColor3f(1,1,1);
    if (axes)
@@ -682,7 +821,7 @@ void display()
    glWindowPos2i(5,5);
    Print("Angle=%d,%d  Dim=%.1f showAABB=%d, move cords=(%.2f,%.2f,%.2f), angle=%.2f,amp=%.2f",th,ph,dim,showAABB,movex, movey, movez,angle,amp);
    glWindowPos2i(5,25);
-   Print("Ambient=%d  Diffuse=%d Specular=%d Emission=%d Shininess=%.0f",ambient,diffuse,specular,emission,shiny);
+   Print("Ambient=%d  Diffuse=%d Specular=%d Emission=%d Shininess=%.0f, loaded=%d",ambient,diffuse,specular,emission,shiny,loaded);
    //  Render the scene and make it visible
    ErrCheck("display");
    glFlush();
@@ -720,18 +859,6 @@ void special(int key,int x,int y)
    //  Tell GLUT it is necessary to redisplay the scene
    glutPostRedisplay();
 }
-void showprojpath()
-{
-	glBegin(GL_LINES);
-	glEnd();
-}
-void projectile()
-{
-	if(showpath)
-	{
-		showprojpath();
-	}
-}
 /*
  *  GLUT calls this routine when a key is pressed
  */
@@ -743,9 +870,9 @@ void key(unsigned char ch,int x,int y)
    //  Reset view angle
    else if (ch == '0')
    {
-      movex=2;
-      movey=2;
-      movez=5;
+      movex=3;
+      movey=14;
+      movez=15;
       th = ph = 0;
    }
    //  Toggle axes
@@ -780,9 +907,14 @@ void key(unsigned char ch,int x,int y)
       distance -= 0.1;
   else if (ch=='L')
 		distance += 0.1;
+  else if (ch=='o')
+      theta = fmod(theta+1,360);
+  else if (ch=='O')
+      theta = fmod(theta-1,360);
   else if(ch=='K')
   {
 	  firelock=1;
+	  fireangle=angle;
   }
   else if(ch=='k' && angle <110)
   {
@@ -809,14 +941,19 @@ void key(unsigned char ch,int x,int y)
   else if (ch=='b' && shininess<7)
 	shininess += 1;
   else if (ch == 'w')
-  {       
+  {      
+
 	  double xnew=movex+.1*dirx ;
 	  double ynew=movey+.1*diry ;
 	  double znew=movez+.1*dirz ;
+	  //double z0 = (zmin+zmax)/2;
+	  //int i=ceil((xnew+512)/16);
+      //int j=ceil((znew+512)/16); 
+      //double plane=z[i-1][j-1],z[i-1][j]z[i+1][j+1];
 	  if(inoneobject(xnew,ynew,znew)== False)
 	  {
 		movex= xnew ;
-		movey= ynew;
+		movey=ynew;//zmag*(z[i][j]-z0)+.5;
 		movez= znew;
 	  }
   }
@@ -827,10 +964,14 @@ void key(unsigned char ch,int x,int y)
 	  double znew=movez-.1*dirz ;
 	  if(inoneobject(xnew,ynew,znew)== False)
 	  {
-		movex= xnew ;
+		movex= xnew;
 		movey= ynew;
 		movez= znew;
 	  }
+  }
+  else if(ch=='f' && angle!=0 && firelock==0)
+  {
+	  loaded=1;
   }
   //angle=fmod(angle,360);
   //  Translate shininess power to value (-1 => 0)
@@ -861,31 +1002,71 @@ void mousex(int x0, int y0)
 	{
 		th=th-1;
 	}
-}void
-timer(int time)
+}
+void timer(int time)
 {
-	glutTimerFunc(10,timer,-1);
+	//object_t* data=fetchtrebuchetdata();
+	//double th=0;
+	//double x=0;
+	//double y=0;
+	//double z=0;
+	//if(data!=NULL)
+	//{
+		//x=data->coords[0];
+		//y=data->coords[1];
+		//z=data->coords[2];
+		//double dx=data->coords[3];
+		//double dy=data->coords[4];
+		//double dz=data->coords[5];
+		//th=data->coords[6];
+		//double ph=data->coords[7];
+	//}
 	if(firelock==1)
 	{
-		double dt = .075;//glutGet(GLUT_ELAPSED_TIME);//1000000.0;
-		//asin(angle);
-		if(angle>0){deltaangle-=dt;}
-		else{deltaangle+=dt;}
+		double dt = .075;
+		if(angle>0)
+		{
+			deltaangle-=dt;
+		}
+		else
+		{
+			deltaangle+=dt;
+		}
 		angle=(angle+deltaangle);
 		angle=fmod(angle,360);
-		//angle=asin((angle*(180/3.1415926))/100);
-		//angle=fmod(amp*Sin(angle*(3.1415926/180))/t,360);
-		amp-=.0005;//glutGet(GLUT_ELAPSED_TIME);//40000000.0;
-		if(amp<0.01)
+		amp-=.001;
+		if(amp<0)
 		{
 			amp=1;
 			angle=0;
 			deltaangle=0;
 			firelock=0;
+			fireangle=0;
+			hit=0;
     	}
+    	if(angle<0 && loaded==1)
+    	{
+			t=0;
+			projx=0;
+			projy=0;
+			projz=0;
+			loaded=0;
+		}
+    	if(loaded==0)
+    	{
+			if(hit==0)
+			{
+				t+=dt;
+				projx=(fireangle/27)*t;
+				projy=3.76+1*t-.1*t*t;
+				projz=0;
+			}
+		}
    }
+   
    //  Request display update
    glutPostRedisplay();
+   glutTimerFunc(10,timer,-1);
 }
 void idle()
 {
@@ -942,6 +1123,7 @@ int main(int argc,char* argv[])
    bark=LoadTexBMP("bark.bmp");
    stone=LoadTexBMP("stone.bmp");
    roof=LoadTexBMP("roof.bmp");
+   tree1=LoadTexBMP("tree.bmp");
    sky[0] = LoadTexBMP("sky0.bmp");
    sky[1] = LoadTexBMP("sky1.bmp");
    ReadDEM("saddleback.dem");

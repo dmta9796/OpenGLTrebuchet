@@ -29,15 +29,25 @@ typedef enum
 }bool;
 typedef struct objects
 {
-	double coords[8]; //{id,x,y,z,dx,dy,dz,th,ph}
+	double coords[8]; //{x,y,z,dx,dy,dz,th,ph}
+	int type; // ids: 0=trebuchet, 1= everything else
 	struct objects *next;
 }object_t;
+typedef struct projectiles
+{
+	double coords[8];
+	int collision;
+	struct projectiles *next;
+}proj_t;
+ 
 //struct operations
-void appendlist(double x, double y ,double z, double dx, double dy,double dz, double th, double ph);
+void appendlist(double x, double y ,double z, double dx, double dy,double dz, double th, double ph,int type);
 bool inoneobject(double x, double y, double z);
+bool inworldobject(double x, double y, double z);
 void drawlist();
 void deleteobjects();
 void AABBbox(double x, double y, double z, double dx, double dy, double dz,double th, double ph);
+object_t* fetchtrebuchetdata();
 
 //other operations
 void Print(const char* format , ...);
@@ -47,7 +57,7 @@ void Project(double fov,double asp,double dim, int mode);
 void ErrCheck(const char* where);
 int  LoadOBJ(const char* file);
 int AABB(double movex, double movey, double movez, double x, double y ,double z, double dx, double dy,double dz, double th, double ph);
-
+void projectile(double x, double y, double z, double dx, double dy, double dz, double th, double ph);
 #ifdef __cplusplus
 }
 #endif

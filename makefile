@@ -33,7 +33,6 @@ errcheck.o: errcheck.c CSCIx229.h
 object.o: object.c CSCIx229.h
 AABB.o: AABB.c CSCIx229.h
 struct.o: struct.c CSCIx229.h
-
 #  Create archive
 CSCIx229.a:fatal.o loadtexbmp.o print.o project.o errcheck.o object.o AABB.o struct.o
 	ar -rcs $@ $^
